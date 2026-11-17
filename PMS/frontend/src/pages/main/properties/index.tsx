@@ -1,5 +1,6 @@
 import { PageMeta } from "@/components/shared/page-meta";
 import { StatusBadge } from "@/components/shared/pms/badges";
+import { ChannelStatusBadges, SyncNowButton } from "@/components/shared/pms/channel-status";
 import {
   Detail,
   EmptyState,
@@ -28,9 +29,12 @@ import { useApiAll } from "@/hooks/use-api";
 import { EyeIcon, LayoutGridIcon, ListIcon, MapIcon, PencilIcon, PlusIcon } from "@/icons";
 import { api, errorMessage } from "@/lib/api";
 import { formatCurrency } from "@/lib/pms/format";
-import type { Property } from "@/lib/pms/types";
+import type { ChannelListing, ChannelOverview, Property } from "@/lib/pms/types";
 import { cn } from "@/utils";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "@/i18n";
+import { KeyIcon } from "@/icons";
+import { AccessInfoDialog } from "./access-info-dialog";
 import { PropertyFormDialog } from "./property-form";
 
 const STATUS_OPTIONS = [
@@ -50,6 +54,16 @@ function PropertyImage({ property, className }: { property: Property; className?
   return <img src={src} alt={property.images[0]?.alt_text || property.name} className={cn("object-cover", className)} loading="lazy" />;
 }
 
+const HOUSEKEEPING_STYLES: Record<string, string> = {
+  ready: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  dirty: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  cleaning: "bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+};
+
+function HousekeepingBadge({ status, label }: { status: string; label: string }) {
+  return <span className={cn("mt-2 inline-flex rounded-lg px-2 py-0.5 text-xs font-medium", HOUSEKEEPING_STYLES[status])}>{label}</span>;
+}
+
 export default function PropertiesPage() {
   const { data, loading, error, reload } = useApiAll<Property>("/properties/", { ordering: "name" });
   const properties = useMemo(() => data ?? [], [data]);
@@ -62,6 +76,27 @@ export default function PropertiesPage() {
   const [editing, setEditing] = useState<Property | null>(null);
   const [viewing, setViewing] = useState<Property | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [accessFor, setAccessFor] = useState<Property | null>(null);
+  const to = useTranslations("pms.ops");
+  const ta = useTranslations("pms.accessInfo");
+
+  // Kanal durumu (Beds24 eşlemesi, Airbnb/Booking bağlı mı, senkron hatası) rozetleri için.
+  const [listings, setListings] = useState<Map<string, ChannelListing | null>>(new Map());
+  const loadChannels = useCallback(() => {
+    api
+      .get<ChannelOverview>("/integrations/channels/")
+      .then((d) => setListings(new Map(d.results.map((r) => [r.property.id, r.listing]))))
+      .catch(() => setListings(new Map())); // rozetler opsiyonel; sayfa yine çalışır
+  }, []);
+  useEffect(loadChannels, [loadChannels]);
+  const onSynced = (listing: ChannelListing) => {
+    setActionError(null);
+    setListings((m) => new Map(m).set(listing.property, listing));
+  };
+  const onSyncError = (message: string) => {
+    setActionError(message);
+    loadChannels();
+  };
 
   const cities = useMemo(() => [...new Set(properties.map((p) => p.city))].sort(), [properties]);
 
@@ -140,6 +175,8 @@ export default function PropertiesPage() {
                 <div className="p-4">
                   <h3 className="font-semibold text-gray-900 dark:text-white/90">{p.name}</h3>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{p.city}, {p.country}</p>
+                  <ChannelStatusBadges className="mt-3" listing={listings.get(p.id)} />
+                  <HousekeepingBadge status={p.housekeeping_status} label={to("housekeepingStatus." + p.housekeeping_status)} />
                   <div className="mt-3 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                     <span>{p.max_guests} guests · {p.bedroom_count} bd</span>
                     <span className="font-medium text-gray-900 dark:text-white/90">{formatCurrency(p.base_price)}<span className="font-normal text-gray-500"> / night</span></span>
@@ -148,6 +185,7 @@ export default function PropertiesPage() {
                     <Button variant="outline" size="xs" className="flex-1" onClick={() => setViewing(p)}><EyeIcon className="size-4" /> View</Button>
                     <Button variant="outline" size="xs" className="flex-1" onClick={() => openEdit(p)}><PencilIcon className="size-4" /> Edit</Button>
                   </div>
+                  <SyncNowButton propertyId={p.id} className="mt-2 w-full" onDone={onSynced} onError={onSyncError} />
                 </div>
               </article>
             ))}
@@ -156,7 +194,7 @@ export default function PropertiesPage() {
           <div className={cn("custom-scrollbar overflow-x-auto transition-opacity", loading && "opacity-60")}>
             <table className="min-w-full">
               <thead className={theadClass}>
-                <tr><Th>Property</Th><Th>Location</Th><Th>Capacity</Th><Th>Base price</Th><Th>Status</Th><Th className="text-end">Actions</Th></tr>
+                <tr><Th>Property</Th><Th>Location</Th><Th>Capacity</Th><Th>Base price</Th><Th>Status</Th><Th>Channels</Th><Th className="text-end">Actions</Th></tr>
               </thead>
               <tbody>
                 {filtered.map((p) => (
@@ -171,8 +209,10 @@ export default function PropertiesPage() {
                     <td className={tdClass}>{p.max_guests} guests · {p.bedroom_count} bd · {p.bathroom_count} ba</td>
                     <td className={cn(tdClass, "whitespace-nowrap")}>{formatCurrency(p.base_price)}</td>
                     <td className={tdClass}><StatusBadge status={p.is_active ? "active" : "inactive"} /></td>
+                    <td className={tdClass}><ChannelStatusBadges listing={listings.get(p.id)} /></td>
                     <td className={cn(tdClass, "text-end")}>
-                      <div className="inline-flex gap-1">
+                      <div className="inline-flex items-center gap-1">
+                        <SyncNowButton propertyId={p.id} onDone={onSynced} onError={onSyncError} />
                         <Button variant="ghost" size="icon-xs" aria-label={`View ${p.name}`} onClick={() => setViewing(p)}><EyeIcon className="size-4" /></Button>
                         <Button variant="ghost" size="icon-xs" aria-label={`Edit ${p.name}`} onClick={() => openEdit(p)}><PencilIcon className="size-4" /></Button>
                       </div>
@@ -185,7 +225,8 @@ export default function PropertiesPage() {
         )}
       </Panel>
 
-      <PropertyFormDialog open={formOpen} property={editing} onOpenChange={setFormOpen} onSaved={reload} />
+      <AccessInfoDialog property={accessFor} onOpenChange={(o) => !o && setAccessFor(null)} />
+      <PropertyFormDialog open={formOpen} property={editing} onOpenChange={setFormOpen} onSaved={() => { reload(); setTimeout(loadChannels, 3000); }} />
 
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
@@ -208,6 +249,7 @@ export default function PropertiesPage() {
                 <Detail label="Area">{viewing.area} m²</Detail>
               </dl>
               <DialogFooter>
+                <Button variant="outline" onClick={() => { setAccessFor(viewing); setViewing(null); }}><KeyIcon className="size-4" /> {ta("open")}</Button>
                 <Button variant="outline" onClick={() => remove(viewing)}>Delete</Button>
                 <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
                 <Button onClick={() => { openEdit(viewing); setViewing(null); }}>Edit property</Button>

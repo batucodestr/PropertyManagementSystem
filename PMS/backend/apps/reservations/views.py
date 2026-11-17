@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from apps.core.views import ProtectedDeleteMixin
 from apps.operations.models import StayRecord
 from apps.operations.serializers import StayRecordSerializer
+from .filters import ReservationFilter
 from .models import Reservation, AvailabilityBlock, ReservationStatusHistory
 from .serializers import ReservationSerializer, AvailabilityBlockSerializer
 
@@ -19,14 +20,7 @@ def _conflict(message):
 class ReservationViewSet(ProtectedDeleteMixin, viewsets.ModelViewSet):
     queryset = Reservation.objects.select_related('property', 'guest').order_by('-check_in', 'id')
     serializer_class = ReservationSerializer
-    filterset_fields = {
-        'property': ['exact'],
-        'guest': ['exact'],
-        'status': ['exact'],
-        'source': ['exact'],
-        'check_in': ['exact', 'gte', 'lte'],
-        'check_out': ['exact', 'gte', 'lte'],
-    }
+    filterset_class = ReservationFilter
     search_fields = ['guest__first_name', 'guest__last_name', 'guest__email', 'property__name']
     ordering_fields = ['check_in', 'check_out', 'created_at', 'total_price']
 

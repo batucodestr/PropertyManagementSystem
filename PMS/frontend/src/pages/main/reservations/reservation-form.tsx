@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { useApiAll } from "@/hooks/use-api";
 import { api, errorMessage, fieldErrors } from "@/lib/api";
-import { formatCurrency, nightsBetween, todayISO } from "@/lib/pms/format";
+import { formatCurrency, nightsBetween, todayISO, toISODate } from "@/lib/pms/format";
 import { guestName, RESERVATION_STATUS_OPTIONS, SOURCE_OPTIONS } from "@/lib/pms/labels";
 import type { Guest, Property, Reservation, ReservationSource, ReservationStatus } from "@/lib/pms/types";
 import { addDays, format, parseISO } from "date-fns";
@@ -73,9 +73,10 @@ function Form({
 
   const [guestId, setGuestId] = useState(reservation?.guest ?? "");
   const [propertyId, setPropertyId] = useState(reservation?.property ?? "");
-  const [checkIn, setCheckIn] = useState(reservation?.check_in ?? todayISO());
+  // API tarih-saat döndürür; tarih kutusu yerel "yyyy-MM-dd" ister.
+  const [checkIn, setCheckIn] = useState(reservation ? toISODate(parseISO(reservation.check_in)) : todayISO());
   const [checkOut, setCheckOut] = useState(
-    reservation?.check_out ?? format(addDays(parseISO(todayISO()), 2), "yyyy-MM-dd"),
+    reservation ? toISODate(parseISO(reservation.check_out)) : format(addDays(parseISO(todayISO()), 2), "yyyy-MM-dd"),
   );
   const [adults, setAdults] = useState(String(reservation?.adults ?? 2));
   const [children, setChildren] = useState(String(reservation?.children ?? 0));

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Property, PropertyImage
+from .models import DailyRate, Property, PropertyAccessInfo, PropertyImage, SeasonalRate
 from .validate import validate_property_data
 
 class PropertyImageSerializer(serializers.ModelSerializer):
@@ -64,3 +64,64 @@ class PublicPropertySerializer(serializers.ModelSerializer):
     def get_image_alt(self, obj):
         img = self._first_image(obj)
         return (img.alt_text if img else '') or obj.name
+
+
+def _check_min_stay(data):
+    if data.get('min_stay') is not None and data['min_stay'] < 1:
+        raise serializers.ValidationError({'min_stay': 'Minimum stay must be at least 1 night.'})
+
+
+class SeasonalRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SeasonalRate
+        fields = '__all__'
+
+    def validate(self, data):
+        start = data.get('start_date', getattr(self.instance, 'start_date', None))
+        end = data.get('end_date', getattr(self.instance, 'end_date', None))
+        if start and end and end < start:
+            raise serializers.ValidationError({'end_date': 'End date cannot be before start date.'})
+        for field in ('nightly_price', 'weekend_price'):
+            if data.get(field) is not None and data[field] < 0:
+                raise serializers.ValidationError({field: 'This value cannot be negative.'})
+        _check_min_stay(data)
+        return data
+
+
+class DailyRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DailyRate
+        fields = '__all__'
+
+    def validate(self, data):
+        if data.get('price') is not None and data['price'] < 0:
+            raise serializers.ValidationError({'price': 'This value cannot be negative.'})
+        _check_min_stay(data)
+        return data
+
+
+class BulkDailyRateSerializer(serializers.Serializer):
+    """Bir tarih aralığına toplu gün fiyatı / min stay / kapalı uygular ya da override'ları temizler."""
+    date_from = serializers.DateField()
+    date_to = serializers.DateField()
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True, min_value=0)
+    min_stay = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    closed = serializers.BooleanField(required=False, default=False)
+    clear = serializers.BooleanField(required=False, default=False)
+
+    def validate(self, data):
+        if data['date_to'] < data['date_from']:
+            raise serializers.ValidationError({'date_to': 'End date cannot be before start date.'})
+        if (data['date_to'] - data['date_from']).days > 400:
+            raise serializers.ValidationError({'date_to': 'The range can be at most 400 days.'})
+        return data
+
+
+
+class PropertyAccessInfoSerializer(serializers.ModelSerializer):
+    """Hassas: sadece yetkili personel uçlarında. PublicPropertySerializer bu modele asla bağlanmaz."""
+
+    class Meta:
+        model = PropertyAccessInfo
+        fields = ['wifi_name', 'wifi_password', 'door_code', 'check_in_instructions', 'house_rules', 'updated_at']
+        read_only_fields = ['updated_at']

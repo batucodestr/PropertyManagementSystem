@@ -21,21 +21,64 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      # Lokal geliştirme (manage.py runserver + celery) için: SADECE bu bilgisayardan erişilir.
+      # SUNUCUDA bu 2 satırı sil.
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build: ./backend
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file: ./backend/pms/.env
-    environment:
-      # Container içinde DB'ye servis adıyla bağlanılır; DEBUG her zaman kapalı.
+    environment: &backend-env
+      # Container içinde DB/Redis'e servis adıyla bağlanılır; DEBUG her zaman kapalı.
       DATABASE_HOST: db
       DATABASE_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
       DJANGO_DEBUG: "False"
     volumes:
       - media:/app/media
       - static:/app/staticfiles
+
+  # Celery worker: Beds24 senkron, webhook işleme vb. arka plan işleri.
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: ./backend/pms/.env
+    environment: *backend-env
+    command: ["celery", "-A", "pms", "worker", "-l", "info", "--concurrency", "2"]
+    volumes:
+      - media:/app/media
+
+  # Celery beat: periyodik görevler (10 dk'da bir rezervasyon polling, 03:00 tam senkron).
+  beat:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file: ./backend/pms/.env
+    environment: *backend-env
+    command: ["celery", "-A", "pms", "beat", "-l", "info", "--schedule", "/tmp/celerybeat-schedule"]
 
   frontend:
     build: ./frontend

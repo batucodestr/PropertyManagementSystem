@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .ENV file
@@ -61,6 +62,7 @@ INSTALLED_APPS = [
     'apps.operations',
     'apps.properties',
     'apps.reservations',
+    'apps.messaging',
 ]
 
 REST_FRAMEWORK = {
@@ -71,8 +73,9 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    # Giriş yapmış personel; sadece-temizlikçi kullanıcılar yalnızca temizlikçi uçlarına erişir.
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'apps.accounts.permissions.IsStaffMember',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -80,6 +83,7 @@ REST_FRAMEWORK = {
     # Sadece throttle_scope tanımlayan görünümlere uygulanır (ör. /api/public/...).
     'DEFAULT_THROTTLE_RATES': {
         'public': os.getenv('PUBLIC_API_THROTTLE_RATE', '300/minute'),
+        'webhook': os.getenv('WEBHOOK_THROTTLE_RATE', '120/minute'),
     },
 }
 
@@ -187,3 +191,118 @@ ALLOWED_HOSTS = [h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS').split
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# ---------------------------------------------------------------------------
+# Test modu: dış servislere (Redis, Beds24) asla gidilmez.
+# ---------------------------------------------------------------------------
+TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
+
+# Cache: Beds24 token'ı tüm worker'lar arasında paylaşılsın diye Redis.
+# REDIS_URL tanımlı değilse (Redis'siz lokal geliştirme) süreç içi LocMem kullanılır.
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+if TESTING or not os.getenv('REDIS_URL') or os.getenv('DJANGO_CACHE', '').lower() == 'locmem':
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+            'TIMEOUT': 300,
+        }
+    }
+
+# Ev saat dilimi ve varsayılan giriş/çıkış saatleri (Beds24'ün tarih-only alanları için).
+PROPERTY_TIMEZONE = os.getenv('PROPERTY_TIMEZONE', 'Europe/Istanbul')
+DEFAULT_CHECKIN_TIME = os.getenv('DEFAULT_CHECKIN_TIME', '15:00')
+DEFAULT_CHECKOUT_TIME = os.getenv('DEFAULT_CHECKOUT_TIME', '11:00')
+PROPERTY_CURRENCY = os.getenv('PROPERTY_CURRENCY', 'TRY')
+# Hafta sonu fiyatı uygulanan geceler (0=Pazartesi ... 6=Pazar). Varsayılan: Cuma, Cumartesi.
+WEEKEND_NIGHTS = [int(x) for x in os.getenv('WEEKEND_NIGHTS', '4,5').split(',') if x.strip()]
+
+# Celery
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', REDIS_URL)
+CELERY_RESULT_BACKEND = None
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_TIMEZONE = PROPERTY_TIMEZONE
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+# Broker'a ulaşılamazsa .delay() isteği dakikalarca bekletmesin.
+CELERY_BROKER_TRANSPORT_OPTIONS = {'max_retries': 1, 'interval_start': 0, 'interval_step': 0.5, 'interval_max': 1}
+CELERY_TASK_ALWAYS_EAGER = TESTING
+
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    'beds24-poll-bookings': {
+        'task': 'apps.integrations.beds24.tasks.poll_bookings',
+        'schedule': 600.0,  # 10 dakika
+    },
+    'beds24-nightly-full-sync': {
+        'task': 'apps.integrations.beds24.tasks.nightly_full_sync',
+        'schedule': crontab(hour=3, minute=0),
+    },
+    'finance-recurring-expenses': {
+        'task': 'apps.finance.tasks.generate_recurring_expenses',
+        'schedule': crontab(hour=6, minute=0),
+    },
+    'messaging-send-due': {
+        'task': 'apps.messaging.tasks.send_due_messages',
+        'schedule': 300.0,  # 5 dakika
+    },
+    'beds24-poll-messages': {
+        'task': 'apps.integrations.beds24.tasks.poll_messages',
+        'schedule': 180.0,  # 3 dakika
+    },
+}
+
+# Kanal varsayılan komisyon oranları (%). Kanal komisyon bildirmezse tahmin için kullanılır.
+CHANNEL_COMMISSIONS = {
+    'airbnb': os.getenv('CHANNEL_COMMISSION_AIRBNB', '15.5'),
+    'booking': os.getenv('CHANNEL_COMMISSION_BOOKING', '15'),
+    'direct': '0',
+    'other': os.getenv('CHANNEL_COMMISSION_OTHER', '0'),
+}
+
+# ---------------------------------------------------------------------------
+# Beds24 (gizli değerler sadece .env'den; burada asla varsayılan değer yok)
+# ---------------------------------------------------------------------------
+BEDS24_API_BASE = os.getenv('BEDS24_API_BASE', 'https://beds24.com/api/v2').rstrip('/')
+# Otomatik senkron (kaydetme sonrası task kuyruğa atma) sadece token tanımlıysa açık.
+BEDS24_AUTO_SYNC = (not TESTING) and bool(os.getenv('BEDS24_REFRESH_TOKEN'))
+BEDS24_TIMEOUT = (5, 30)  # (bağlantı, okuma) saniye
+BEDS24_MAX_RETRIES = 3
+BEDS24_RETRY_BASE_DELAY = 0 if TESTING else 1.0
+# Fiyat/müsaitlik senkron penceresi (gün).
+BEDS24_SYNC_DAYS = 365
+# Webhook URL'sini Beds24'e API ile kaydetmek için dışarıdan erişilebilen backend adresi
+# (örn. https://xxxx.trycloudflare.com). Boşsa webhook panelden elle girilir.
+PUBLIC_BASE_URL = os.getenv('PUBLIC_BASE_URL', '').rstrip('/')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'loggers': {
+        'apps.integrations': {'handlers': ['console'], 'level': os.getenv('INTEGRATIONS_LOG_LEVEL', 'INFO')},
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Mesajlaşma
+# ---------------------------------------------------------------------------
+# OTA rezervasyonlarının mesaj kanalı (kanal yöneticisi değişirse sadece bu satır değişir).
+MESSAGE_OTA_SENDER = 'apps.integrations.beds24.messaging.Beds24MessageSender'
+MESSAGE_DEFAULT_LANGUAGE = os.getenv('MESSAGE_DEFAULT_LANGUAGE', 'en')
+
+# E-posta (direkt rezervasyon mesajları). EMAIL_HOST yoksa e-posta gönderimi kapalıdır
+# (mesajlar kapı kodu içerebileceği için konsola yazdırılmaz).
+EMAIL_HOST = os.getenv('EMAIL_HOST', '')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes')
+EMAIL_TIMEOUT = 20
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@localhost')
+EMAIL_CONFIGURED = bool(EMAIL_HOST) or TESTING

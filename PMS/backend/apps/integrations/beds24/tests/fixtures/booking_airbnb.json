@@ -1,0 +1,41 @@
+{
+  "success": true,
+  "type": "booking",
+  "count": 1,
+  "pages": {"nextPageExists": false, "nextPageLink": null},
+  "data": [
+    {
+      "id": 77700001,
+      "propertyId": 250001,
+      "roomId": 560001,
+      "unitId": 1,
+      "roomQty": 1,
+      "status": "new",
+      "subStatus": "none",
+      "arrival": "2030-07-01",
+      "departure": "2030-07-05",
+      "numAdult": 2,
+      "numChild": 1,
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "email": "jane.doe.abc123@guest.airbnb.com",
+      "phone": "+15550001111",
+      "mobile": "",
+      "country2": "US",
+      "comments": "Late arrival",
+      "message": "",
+      "price": 4800.5,
+      "commission": 744.08,
+      "tax": 0,
+      "apiSourceId": 46,
+      "apiSource": "Airbnb",
+      "channel": "airbnb",
+      "apiReference": "HMABC12345",
+      "bookingTime": "2030-06-01T10:00:00Z",
+      "modifiedTime": "2030-06-01T10:00:00Z",
+      "invoiceItems": [
+        {"id": 1, "type": "charge", "description": "Accommodation", "qty": 1, "amount": 4800.5, "lineTotal": 4800.5}
+      ]
+    }
+  ]
+}

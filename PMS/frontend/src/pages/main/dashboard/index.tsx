@@ -16,7 +16,9 @@ import { useTheme } from "@/contexts";
 import { useApiAll, useApiList } from "@/hooks/use-api";
 import { formatCurrency, formatDateShort, toISODate, todayISO } from "@/lib/pms/format";
 import { SOURCE_LABELS, guestName } from "@/lib/pms/labels";
-import type { Guest, Property, Reservation, ReservationSource } from "@/lib/pms/types";
+import type { FinanceSummary, Guest, Property, Reservation, ReservationSource } from "@/lib/pms/types";
+import { api } from "@/lib/api";
+import { useTranslations } from "@/i18n";
 import {
   ArrowLeftRightIcon,
   CalendarIcon,
@@ -28,7 +30,7 @@ import {
 import { cn } from "@/utils";
 import type { ApexOptions } from "apexcharts";
 import { addDays, endOfMonth, format, parseISO, startOfMonth } from "date-fns";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactApexChart from "react-apexcharts";
 import { Link } from "react-router";
 
@@ -38,6 +40,7 @@ const NIGHTS = 14;
 const isLive = (r: Reservation) => r.status !== "cancelled" && r.status !== "no_show";
 
 export default function DashboardPage() {
+  const tf = useTranslations("pms.finance.dashboard");
   const { theme } = useTheme();
   const dark = theme === "dark";
 
@@ -49,11 +52,21 @@ export default function DashboardPage() {
   const monthEnd = toISODate(endOfMonth(todayDate));
 
   const properties = useApiAll<Property>("/properties/");
+  // Net gelir Reports sayfasıyla aynı kaynaktan (gece bazında oranlanmış, komisyon düşülmüş).
+  const [finance, setFinance] = useState<FinanceSummary | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<FinanceSummary>("/finance/summary/", { from: monthStart, to: monthEnd })
+      .then((d) => !cancelled && setFinance(d))
+      .catch(() => undefined); // kart eski (brüt) hesaba düşer
+    return () => { cancelled = true; };
+  }, [monthStart, monthEnd]);
   const guests = useApiAll<Guest>("/guests/");
   const pending = useApiList<Reservation>("/reservations/", { status: "pending", page_size: 1 });
   const confirmed = useApiList<Reservation>("/reservations/", { status: "confirmed", page_size: 1 });
-  const arrivals = useApiAll<Reservation>("/reservations/", { check_in: today });
-  const departures = useApiAll<Reservation>("/reservations/", { check_out: today });
+  const arrivals = useApiAll<Reservation>("/reservations/", { check_in_date: today });
+  const departures = useApiAll<Reservation>("/reservations/", { check_out_date: today });
   // Önümüzdeki 14 geceye değen rezervasyonlar (bu geceyi de kapsar).
   const windowRes = useApiAll<Reservation>("/reservations/", {
     check_in__lte: windowEnd,
@@ -187,7 +200,11 @@ export default function DashboardPage() {
         <StatCard label="Today's Check-ins" value={checkIns} hint="Arrivals expected today" icon={<ArrowLeftRightIcon />} />
         <StatCard label="Today's Check-outs" value={checkOuts} hint="Departures due today" icon={<CalendarIcon />} />
         <StatCard label="Occupancy Rate" value={`${occupancy}%`} hint="Tonight, active properties" icon={<PieChartIcon />} />
-        <StatCard label="Monthly Revenue" value={revenue} hint="By check-in month, excl. cancelled" icon={<DollarIcon />} />
+        {finance ? (
+          <StatCard label={tf("netRevenue")} value={formatCurrency(finance.totals.net)} hint={tf("netRevenueHint", { gross: formatCurrency(finance.totals.gross) })} icon={<DollarIcon />} />
+        ) : (
+          <StatCard label="Monthly Revenue" value={revenue} hint="By check-in month, excl. cancelled" icon={<DollarIcon />} />
+        )}
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">

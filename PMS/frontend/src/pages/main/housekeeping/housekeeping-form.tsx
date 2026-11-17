@@ -13,6 +13,8 @@ import { api, errorMessage, fieldErrors } from "@/lib/api";
 import { TASK_STATUS_OPTIONS } from "@/lib/pms/labels";
 import { formatDateShort, todayISO } from "@/lib/pms/format";
 import type { HousekeepingTask, Property, Reservation, TaskStatus } from "@/lib/pms/types";
+import { CleanerSelect } from "@/components/shared/pms/cleaner-select";
+import { useTranslations } from "@/i18n";
 import { useState } from "react";
 
 interface Draft {
@@ -21,6 +23,8 @@ interface Draft {
   scheduled_date: string;
   notes: string;
   status: TaskStatus;
+  cost: string;
+  assigned_to: string;
 }
 
 function toDraft(task: HousekeepingTask | null): Draft {
@@ -31,8 +35,10 @@ function toDraft(task: HousekeepingTask | null): Draft {
         scheduled_date: task.scheduled_date,
         notes: task.notes,
         status: task.status,
+        cost: task.cost ?? "",
+        assigned_to: task.assigned_to ? String(task.assigned_to) : "",
       }
-    : { property: "", reservation: "", scheduled_date: todayISO(), notes: "", status: "pending" };
+    : { property: "", reservation: "", scheduled_date: todayISO(), notes: "", status: "pending", cost: "", assigned_to: "" };
 }
 
 export function HousekeepingFormDialog({
@@ -108,6 +114,8 @@ function Form({
   onCancel: () => void;
   onSaved: () => void;
 }) {
+  const tf = useTranslations("pms.finance.taskCost");
+  const to = useTranslations("pms.ops");
   const [draft, setDraft] = useState<Draft>(toDraft(task));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -125,7 +133,12 @@ function Form({
     if (Object.keys(next).length) return;
 
     setSaving(true);
-    const body = { ...draft, reservation: draft.reservation || null };
+    const body = {
+      ...draft,
+      reservation: draft.reservation || null,
+      cost: draft.cost === "" ? null : draft.cost,
+      assigned_to: draft.assigned_to ? Number(draft.assigned_to) : null,
+    };
     try {
       if (task) await api.patch(`/housekeeping/${task.id}/`, body);
       else await api.post("/housekeeping/", body);
@@ -167,6 +180,11 @@ function Form({
         )}
         <TextField label="Scheduled date" type="date" value={draft.scheduled_date} onChange={(v) => set("scheduled_date", v)} error={errors.scheduled_date} />
         <SelectField label="Status" value={draft.status} onChange={(v) => set("status", v as TaskStatus)} options={TASK_STATUS_OPTIONS} error={errors.status} />
+        <CleanerSelect label={to("assignee")} value={draft.assigned_to} onChange={(v) => set("assigned_to", v)} error={errors.assigned_to} />
+        <div>
+          <TextField label={tf("cost")} type="number" placeholder={tf("costPlaceholder")} value={draft.cost} onChange={(v) => set("cost", v)} error={errors.cost} />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{tf("costHintCleaning")}</p>
+        </div>
         <TextAreaField className="sm:col-span-2" label="Notes" value={draft.notes} onChange={(v) => set("notes", v)} rows={3} />
       </div>
       {formError && <p role="alert" className="text-sm text-red-500">{formError}</p>}

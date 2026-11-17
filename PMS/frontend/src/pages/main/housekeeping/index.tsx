@@ -16,7 +16,9 @@ import {
   theadClass,
   trClass,
 } from "@/components/shared/pms/ui-bits";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "@/i18n";
 import { useApiAll, useApiList } from "@/hooks/use-api";
 import { api, errorMessage } from "@/lib/api";
 import { formatDateShort, todayISO } from "@/lib/pms/format";
@@ -33,6 +35,7 @@ const selectClass =
   "h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700 outline-hidden focus:border-brand-300 focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200";
 
 export default function HousekeepingPage() {
+  const to = useTranslations("pms.ops");
   const [propertyId, setPropertyId] = useState("");
   const [status, setStatus] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -133,13 +136,22 @@ export default function HousekeepingPage() {
             <div className={cn("custom-scrollbar overflow-x-auto", list.loading && "opacity-60")}>
               <table className="min-w-full">
                 <thead className={theadClass}>
-                  <tr><Th>Property</Th><Th>Scheduled</Th><Th>Reservation</Th><Th>Notes</Th><Th>Completed</Th><Th>Status</Th><Th className="text-end">Actions</Th></tr>
+                  <tr><Th>Property</Th><Th>Scheduled</Th><Th>{to("assignee")}</Th><Th>Reservation</Th><Th>Notes</Th><Th>Completed</Th><Th>Status</Th><Th className="text-end">Actions</Th></tr>
                 </thead>
                 <tbody>
                   {tasks.map((t) => (
                     <tr key={t.id} className={trClass}>
-                      <td className={cn(tdClass, "font-medium text-gray-900 dark:text-white/90")}>{propertyName.get(t.property) ?? "—"}</td>
+                      <td className={tdClass}>
+                        <div className="font-medium text-gray-900 dark:text-white/90">{propertyName.get(t.property) ?? "—"}</div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {t.priority === "urgent" && t.status !== "completed" && (
+                            <Badge variant="light" size="sm" color="error" className="[text-shadow:none]!" title={to("urgentHint")}>{to("priority.urgent")}</Badge>
+                          )}
+                          {t.is_auto && <Badge variant="light" size="sm" color="info" className="[text-shadow:none]!" title={to("autoHint")}>{to("auto")}</Badge>}
+                        </div>
+                      </td>
                       <td className={cn(tdClass, "whitespace-nowrap")}>{formatDateShort(t.scheduled_date)}</td>
+                      <td className={tdClass}>{t.assigned_to_name ?? <span className="text-gray-400">{to("unassigned")}</span>}</td>
                       <td className={cn(tdClass, "font-mono text-xs")}>{t.reservation ? t.reservation.slice(0, 8) : "—"}</td>
                       <td className={cn(tdClass, "max-w-xs truncate")}>{t.notes || "—"}</td>
                       <td className={cn(tdClass, "whitespace-nowrap")}>{t.completed_date ? formatDateShort(t.completed_date) : "—"}</td>

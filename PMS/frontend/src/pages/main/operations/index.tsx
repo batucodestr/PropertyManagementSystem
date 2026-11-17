@@ -25,8 +25,8 @@ const isLive = (r: Reservation) => r.status !== "cancelled" && r.status !== "no_
 export default function OperationsPage() {
   // todayISO sayfa açıkken sabit kalsın diye bir kez hesaplanır.
   const [today] = useState(todayISO);
-  const arrivalsQ = useApiAll<Reservation>("/reservations/", { check_in: today, ordering: "check_in" });
-  const departuresQ = useApiAll<Reservation>("/reservations/", { check_out: today, ordering: "check_out" });
+  const arrivalsQ = useApiAll<Reservation>("/reservations/", { check_in_date: today, ordering: "check_in" });
+  const departuresQ = useApiAll<Reservation>("/reservations/", { check_out_date: today, ordering: "check_out" });
   const guests = useApiAll<Guest>("/guests/");
   const properties = useApiAll<Property>("/properties/");
 

@@ -13,6 +13,7 @@ import { guestName } from "@/lib/pms/labels";
 import type { Guest, Property, Reservation, ReservationStatus } from "@/lib/pms/types";
 import { useCallback, useEffect, useState } from "react";
 import { ChannelBadge, StatusBadge } from "./badges";
+import { ReservationMessages } from "./reservation-messages";
 import { Detail, ErrorBanner, LoadingBlock } from "./ui-bits";
 
 interface Loaded {
@@ -163,6 +164,7 @@ function DetailBody({
           </Detail>
         </dl>
         <Detail label="Special requests">{r.special_requests}</Detail>
+        <ReservationMessages reservationId={r.id} />
       </div>
       <SheetFooter className="flex-row flex-wrap justify-end gap-2 border-t border-gray-100 dark:border-gray-800">
         <Button variant="outline" disabled={busy} onClick={remove}>

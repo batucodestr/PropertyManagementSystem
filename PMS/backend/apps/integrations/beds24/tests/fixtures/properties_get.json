@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "type": "property",
+  "count": 1,
+  "pages": {"nextPageExists": false, "nextPageLink": null},
+  "data": [
+    {
+      "id": 250001,
+      "name": "Sea View",
+      "propertyType": "apartment",
+      "currency": "TRY",
+      "roomTypes": [
+        {"id": 560001, "propertyId": 250001, "name": "Sea View", "qty": 1, "maxPeople": 4}
+      ]
+    }
+  ]
+}

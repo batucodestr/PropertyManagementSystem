@@ -1,3 +1,7 @@
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
+
+from django.conf import settings
 from django.db import transaction
 from rest_framework import serializers
 
@@ -54,10 +58,41 @@ def assert_availability(*, property, check_in, check_out, adults, children, stat
         raise serializers.ValidationError(errors)
 
 
+class StayDateTimeField(serializers.DateTimeField):
+    """Sadece tarih ('2030-07-01') gelirse ev saat diliminde varsayılan giriş/çıkış saatini ekler.
+
+    Aksi halde DRF tarihi UTC gece yarısı sayar (İstanbul'da 03:00) ve giriş saati, temizlik günü,
+    misafir mesajları yanlış olur. Tam tarih-saat gönderilirse aynen kullanılır.
+    """
+
+    def __init__(self, *args, default_time_setting, **kwargs):
+        self.default_time_setting = default_time_setting
+        super().__init__(*args, **kwargs)
+
+    def to_internal_value(self, value):
+        if isinstance(value, str) and len(value.strip()) == 10:
+            try:
+                day = date.fromisoformat(value.strip())
+            except ValueError:
+                return super().to_internal_value(value)
+            hour, minute = getattr(settings, self.default_time_setting).split(':')
+            return datetime.combine(day, time(int(hour), int(minute)), tzinfo=ZoneInfo(settings.PROPERTY_TIMEZONE))
+        return super().to_internal_value(value)
+
+
 class ReservationSerializer(serializers.ModelSerializer):
+    check_in = StayDateTimeField(default_time_setting='DEFAULT_CHECKIN_TIME')
+    check_out = StayDateTimeField(default_time_setting='DEFAULT_CHECKOUT_TIME')
+
     class Meta:
         model = Reservation
         fields = "__all__"
+        # Kanal eşlemesi sadece senkron servisleri tarafından yazılır.
+        read_only_fields = [
+            "external_source_id", "channel_booking_ref", "last_synced_at",
+            # Finans: net her kayıtta yeniden hesaplanır (apps.finance.services.apply_financials).
+            "net_amount", "commission_is_estimated",
+        ]
 
     def validate_currency(self, value):
         if len(value) != 3 or not value.isalpha():
@@ -142,6 +177,13 @@ class ReservationSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"status": "A reservation that has checked in cannot be cancelled."}
                 )
+
+        for field in ('channel_commission', 'cleaning_fee', 'taxes'):
+            if data.get(field) is not None and data[field] < 0:
+                raise serializers.ValidationError({field: "This value cannot be negative."})
+        if 'channel_commission' in data:
+            # Elle girilen komisyon kesindir; null gönderilirse kanal oranıyla yeniden tahmin edilir.
+            data['commission_is_estimated'] = data['channel_commission'] is None
 
         # Early, friendly error. The authoritative check re-runs under a lock in create()/update().
         self._check_availability(data)

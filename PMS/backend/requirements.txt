@@ -13,3 +13,7 @@ python-dotenv==1.1.1
 sqlparse==0.6.1
 typing_extensions==4.16.0
 tzdata==2026.6
+celery==5.5.3
+redis==6.2.0
+requests==2.32.4
+responses==0.25.7

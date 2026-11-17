@@ -3,6 +3,7 @@ import {
   getAccessToken,
   getRefreshToken,
   saveLogin,
+  saveRole,
   saveTokens,
 } from "./auth";
 
@@ -208,6 +209,12 @@ export async function signIn(
     { method: "POST", body: { username, password }, auth: false },
   );
   saveLogin(tokens, username, remember);
+  try {
+    const me = await apiFetch<{ role: "cleaner" | "manager" }>("/accounts/me/");
+    saveRole(me.role);
+  } catch {
+    saveRole("manager");
+  }
 }
 
 export async function signOut() {

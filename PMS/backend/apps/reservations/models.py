@@ -52,8 +52,41 @@ class Reservation(BaseModel):
 
     special_requests = models.TextField(blank=True)
 
+    # Kanal yöneticisi (Beds24) eşlemesi. external_source_id = Beds24 booking id.
+    external_source_id = models.CharField(max_length=64, blank=True, default="")
+    # Airbnb / Booking.com onay kodu.
+    channel_booking_ref = models.CharField(max_length=100, blank=True, default="")
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    # True: rezervasyon kanal yöneticisinden (Beds24) içe aktarıldı -> oradaki veri otoriter.
+    # False: PMS'te açıldı (kaynağı Airbnb seçilmiş olsa bile) -> Beds24'e PMS'ten gönderilir.
+    created_via_channel = models.BooleanField(default=False)
+    # Misafirin dili (Beds24 'lang'); otomatik mesaj şablonu seçiminde kullanılır.
+    guest_language = models.CharField(max_length=10, blank=True, default="")
+
+    # --- Finans ---
+    # Tanım: net_amount = total_price - channel_commission - taxes.
+    # cleaning_fee total_price'ın İÇİNDEDİR (bilgi amaçlı ayrıca tutulur), net'ten düşülmez.
+    channel_commission = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    commission_is_estimated = models.BooleanField(default=False)
+    cleaning_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    taxes = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class PayoutStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PAID = "paid", "Paid"
+
+    payout_status = models.CharField(max_length=10, choices=PayoutStatus.choices, default=PayoutStatus.PENDING)
+    payout_date = models.DateField(null=True, blank=True)
+
     class Meta:
         constraints = [
+            # Beds24 booking id'si kanaldan bağımsız tekildir; boş değerler (yerel kayıtlar) hariç.
+            models.UniqueConstraint(
+                fields=["external_source_id"],
+                condition=~models.Q(external_source_id=""),
+                name="unique_reservation_external_source_id",
+            ),
             models.CheckConstraint(
                 condition=models.Q(check_out__gt=models.F("check_in")),
                 name="reservation_check_out_after_check_in",
