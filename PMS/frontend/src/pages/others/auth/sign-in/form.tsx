@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/input-group";
 import { useNavigate } from "react-router";
 import { errorMessage, signIn } from "@/lib/api";
-import { homePath } from "@/lib/auth";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
@@ -41,7 +40,7 @@ export default function SignInFormFields() {
     setServerError("");
     try {
       await signIn(data.username, data.password, Boolean(data.keepLoggedIn));
-      navigate(homePath(), { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       setServerError(errorMessage(error));
     }

@@ -8,10 +8,10 @@ from rest_framework.response import Response
 
 from apps.core.views import ProtectedDeleteMixin
 from . import pricing
-from .models import DailyRate, Property, PropertyAccessInfo, PropertyImage, SeasonalRate
+from .models import DailyRate, Property, PropertyImage, SeasonalRate
 from .serializers import (
-    BulkDailyRateSerializer, DailyRateSerializer, PropertyAccessInfoSerializer, PropertyImageSerializer,
-    PropertySerializer, SeasonalRateSerializer,
+    BulkDailyRateSerializer, DailyRateSerializer, PropertyImageSerializer, PropertySerializer,
+    SeasonalRateSerializer,
 )
 from .signals import rates_changed
 
@@ -76,19 +76,6 @@ class PropertyViewSet(ProtectedDeleteMixin, viewsets.ModelViewSet):
                     rate.save()
             rates_changed.send(sender=Property, property=prop, date_from=start, date_to=end)
         return Response({'updated': (end - start).days + 1}, status=status.HTTP_200_OK)
-
-
-    @action(detail=True, methods=['get', 'put', 'patch'], url_path='access-info')
-    def access_info(self, request, pk=None):
-        """Wifi / kapı kodu gibi giriş bilgileri (otomatik misafir mesajlarında kullanılır)."""
-        prop = self.get_object()
-        info, _ = PropertyAccessInfo.objects.get_or_create(property=prop)
-        if request.method == 'GET':
-            return Response(PropertyAccessInfoSerializer(info).data)
-        serializer = PropertyAccessInfoSerializer(info, data=request.data, partial=request.method == 'PATCH')
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
 
 
 class PropertyImageViewSet(viewsets.ModelViewSet):

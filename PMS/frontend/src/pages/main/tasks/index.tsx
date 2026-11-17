@@ -1,5 +1,8 @@
 import { PageMeta } from "@/components/shared/page-meta";
 import { StatusBadge } from "@/components/shared/pms/badges";
+import { Badge } from "@/components/ui/badge";
+import { useTranslations } from "@/i18n";
+import { TASK_PRIORITIES, type TaskPriority } from "@/lib/pms/types";
 import {
   EmptyState,
   ErrorBanner,
@@ -31,10 +34,16 @@ const PAGE_SIZE = 20;
 const selectClass =
   "h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700 outline-hidden focus:border-brand-300 focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200";
 
+const PRIORITY_COLOR: Record<TaskPriority, "gray" | "info" | "warning" | "error"> = {
+  low: "gray", normal: "info", high: "warning", critical: "error",
+};
+
 export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [propertyId, setPropertyId] = useState("");
   const [status, setStatus] = useState("");
+  const [priority, setPriority] = useState("");
+  const tp = useTranslations("pms.taskPriority");
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<GeneralTask | null>(null);
@@ -46,6 +55,7 @@ export default function TasksPage() {
     search: debouncedSearch,
     property: propertyId,
     status,
+    priority,
     ordering: "due_date",
     page,
     page_size: PAGE_SIZE,
@@ -100,6 +110,8 @@ export default function TasksPage() {
           <SearchBox value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search description…" />
           <FilterSelect label="Property" value={propertyId} onChange={(v) => { setPropertyId(v); setPage(1); }} options={(properties.data ?? []).map((p) => ({ value: p.id, label: p.name }))} allLabel="All properties" />
           <FilterSelect label="Status" value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={TASK_STATUS_OPTIONS} allLabel="All statuses" />
+          <FilterSelect label={tp("label")} value={priority} onChange={(v) => { setPriority(v); setPage(1); }}
+            options={[...TASK_PRIORITIES].reverse().map((p) => ({ value: p, label: tp(p) }))} allLabel={tp("all")} />
         </FilterBar>
 
         {list.error ? (
@@ -113,13 +125,16 @@ export default function TasksPage() {
             <div className={cn("custom-scrollbar overflow-x-auto", list.loading && "opacity-60")}>
               <table className="min-w-full">
                 <thead className={theadClass}>
-                  <tr><Th>Description</Th><Th>Property</Th><Th>Due</Th><Th>Completed</Th><Th>Status</Th><Th className="text-end">Actions</Th></tr>
+                  <tr><Th>Description</Th><Th>Property</Th><Th>{tp("label")}</Th><Th>Due</Th><Th>Completed</Th><Th>Status</Th><Th className="text-end">Actions</Th></tr>
                 </thead>
                 <tbody>
                   {tasks.map((t) => (
                     <tr key={t.id} className={trClass}>
                       <td className={cn(tdClass, "max-w-sm font-medium text-gray-900 dark:text-white/90")}>{t.description}</td>
                       <td className={tdClass}>{propertyName.get(t.property) ?? "—"}</td>
+                      <td className={tdClass}>
+                        <Badge variant="light" size="sm" color={PRIORITY_COLOR[t.priority]} className="[text-shadow:none]!">{tp(t.priority)}</Badge>
+                      </td>
                       <td className={cn(tdClass, "whitespace-nowrap")}>{formatDateShort(t.due_date)}</td>
                       <td className={cn(tdClass, "whitespace-nowrap")}>{t.completed_date ? formatDateShort(t.completed_date) : "—"}</td>
                       <td className={tdClass}>

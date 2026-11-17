@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { useApiAll, useApiList, useDebounce } from "@/hooks/use-api";
+import { useApiList, useDebounce } from "@/hooks/use-api";
 import { useTranslations } from "@/i18n";
 import { ChevronLeftIcon, MailIcon, SendIcon } from "@/icons";
 import { api, errorMessage } from "@/lib/api";
 import { formatDateShort, formatDateTime } from "@/lib/pms/format";
 import { SOURCE_LABELS } from "@/lib/pms/labels";
-import type { Conversation, InboxMessage, MessageTemplate } from "@/lib/pms/types";
+import type { Conversation, InboxMessage } from "@/lib/pms/types";
 import { cn } from "@/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -104,7 +104,6 @@ function Thread({ conversation, onBack, onChanged }: { conversation: Conversatio
   const [error, setError] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const templates = useApiAll<MessageTemplate>("/messaging/templates/", { is_active: true });
   const endRef = useRef<HTMLDivElement>(null);
   const base = `/messaging/conversations/${conversation.id}/`;
 
@@ -142,18 +141,8 @@ function Thread({ conversation, onBack, onChanged }: { conversation: Conversatio
     }
   };
 
-  const insertTemplate = async (id: string) => {
-    if (!id) return;
-    try {
-      const preview = await api.post<{ body: string }>(`/messaging/templates/${id}/preview/`, { reservation: conversation.reservation });
-      setBody((b) => (b ? `${b}\n${preview.body}` : preview.body));
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
-
   const who = (m: InboxMessage) =>
-    m.source === "auto" ? t("auto") : m.source === "system" ? t("system") : m.direction === "out" ? (m.sent_by_name ?? t("you")) : t("guest");
+    m.source === "system" ? t("system") : m.direction === "out" ? (m.sent_by_name ?? t("you")) : t("guest");
 
   return (
     <>
@@ -193,12 +182,7 @@ function Thread({ conversation, onBack, onChanged }: { conversation: Conversatio
         {conversation.channel === "email" && <p className="text-xs text-gray-500 dark:text-gray-400">{t("emailNoInbound")}</p>}
         <Textarea rows={3} value={body} placeholder={t("replyPlaceholder")} onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void send(e); }} />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <select aria-label={t("quickReply")} value="" onChange={(e) => void insertTemplate(e.target.value)}
-            className="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-            <option value="">{t("quickReply")}</option>
-            {(templates.data ?? []).map((tpl) => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
-          </select>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button type="submit" disabled={sending || !body.trim()}>
             {sending ? <Spinner /> : <SendIcon className="size-4" />} {sending ? t("sending") : t("send")}
           </Button>

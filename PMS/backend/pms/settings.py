@@ -73,9 +73,8 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
-    # Giriş yapmış personel; sadece-temizlikçi kullanıcılar yalnızca temizlikçi uçlarına erişir.
     'DEFAULT_PERMISSION_CLASSES': [
-        'apps.accounts.permissions.IsStaffMember',
+        'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -216,6 +215,9 @@ else:
 PROPERTY_TIMEZONE = os.getenv('PROPERTY_TIMEZONE', 'Europe/Istanbul')
 DEFAULT_CHECKIN_TIME = os.getenv('DEFAULT_CHECKIN_TIME', '15:00')
 DEFAULT_CHECKOUT_TIME = os.getenv('DEFAULT_CHECKOUT_TIME', '11:00')
+if TESTING:
+    # Testler .env'deki ev ayarlarından bağımsız çalışsın.
+    PROPERTY_TIMEZONE, DEFAULT_CHECKIN_TIME, DEFAULT_CHECKOUT_TIME = 'Europe/Istanbul', '15:00', '11:00'
 PROPERTY_CURRENCY = os.getenv('PROPERTY_CURRENCY', 'TRY')
 # Hafta sonu fiyatı uygulanan geceler (0=Pazartesi ... 6=Pazar). Varsayılan: Cuma, Cumartesi.
 WEEKEND_NIGHTS = [int(x) for x in os.getenv('WEEKEND_NIGHTS', '4,5').split(',') if x.strip()]
@@ -242,14 +244,6 @@ CELERY_BEAT_SCHEDULE = {
     'beds24-nightly-full-sync': {
         'task': 'apps.integrations.beds24.tasks.nightly_full_sync',
         'schedule': crontab(hour=3, minute=0),
-    },
-    'finance-recurring-expenses': {
-        'task': 'apps.finance.tasks.generate_recurring_expenses',
-        'schedule': crontab(hour=6, minute=0),
-    },
-    'messaging-send-due': {
-        'task': 'apps.messaging.tasks.send_due_messages',
-        'schedule': 300.0,  # 5 dakika
     },
     'beds24-poll-messages': {
         'task': 'apps.integrations.beds24.tasks.poll_messages',
@@ -294,10 +288,9 @@ LOGGING = {
 # ---------------------------------------------------------------------------
 # OTA rezervasyonlarının mesaj kanalı (kanal yöneticisi değişirse sadece bu satır değişir).
 MESSAGE_OTA_SENDER = 'apps.integrations.beds24.messaging.Beds24MessageSender'
-MESSAGE_DEFAULT_LANGUAGE = os.getenv('MESSAGE_DEFAULT_LANGUAGE', 'en')
 
-# E-posta (direkt rezervasyon mesajları). EMAIL_HOST yoksa e-posta gönderimi kapalıdır
-# (mesajlar kapı kodu içerebileceği için konsola yazdırılmaz).
+# E-posta (Inbox'tan direkt rezervasyon misafirine cevap). EMAIL_HOST yoksa e-posta gönderimi kapalıdır
+# (mesaj içerikleri konsola yazdırılmaz).
 EMAIL_HOST = os.getenv('EMAIL_HOST', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')

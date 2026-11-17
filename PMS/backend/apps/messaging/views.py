@@ -6,51 +6,9 @@ from rest_framework.response import Response
 
 from apps.reservations.models import Reservation
 from . import services
-from .models import Conversation, MessageTemplate, ScheduledMessage
+from .models import Conversation
 from .senders import MessageSendError
-from .serializers import (
-    TEMPLATE_VARIABLES, ConversationSerializer, MessageSerializer, MessageTemplateSerializer, ReplySerializer,
-    ScheduledMessageSerializer,
-)
-
-
-class MessageTemplateViewSet(viewsets.ModelViewSet):
-    queryset = MessageTemplate.objects.order_by('trigger', 'language', 'name')
-    serializer_class = MessageTemplateSerializer
-    filterset_fields = ['trigger', 'language', 'is_active']
-    search_fields = ['name', 'subject', 'body']
-
-    @action(detail=False, methods=['get'])
-    def variables(self, request):
-        return Response({'variables': TEMPLATE_VARIABLES, 'triggers': MessageTemplate.Trigger.choices})
-
-    @action(detail=True, methods=['post'])
-    def preview(self, request, pk=None):
-        """Şablonu gerçek bir rezervasyonla işler (göndermez). Body: {reservation: <uuid>}"""
-        template = self.get_object()
-        reservation = get_object_or_404(
-            Reservation.objects.select_related('property', 'guest'), pk=request.data.get('reservation'),
-        )
-        context = services.template_context(reservation)
-        return Response({
-            'subject': services.render(template.subject, context),
-            'body': services.render(template.body, context),
-        })
-
-
-class ScheduledMessageViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    queryset = ScheduledMessage.objects.select_related('template').order_by('send_at')
-    serializer_class = ScheduledMessageSerializer
-    filterset_fields = ['reservation', 'status', 'template']
-
-    @action(detail=True, methods=['post'])
-    def cancel(self, request, pk=None):
-        updated = ScheduledMessage.objects.filter(pk=pk, status=ScheduledMessage.Status.PENDING).update(
-            status=ScheduledMessage.Status.CANCELLED,
-        )
-        if not updated:
-            return Response({'detail': 'Only pending messages can be cancelled.'}, status=status.HTTP_409_CONFLICT)
-        return Response(self.get_serializer(self.get_object()).data)
+from .serializers import ConversationSerializer, MessageSerializer, ReplySerializer
 
 
 class ConversationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):

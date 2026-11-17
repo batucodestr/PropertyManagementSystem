@@ -23,10 +23,6 @@ class Property(BaseModel):
         DIRTY = 'dirty', 'Needs cleaning'
         CLEANING = 'cleaning', 'Cleaning in progress'
 
-    # Otomatik temizlik görevlerine atanacak varsayılan temizlikçi.
-    default_cleaner = models.ForeignKey(
-        'auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='default_cleaner_for',
-    )
     housekeeping_status = models.CharField(
         max_length=10, choices=HousekeepingStatus.choices, default=HousekeepingStatus.READY,
     )
@@ -89,15 +85,3 @@ class DailyRate(BaseModel):
         return f"{self.property.name} - {self.date}"
 
 
-
-class PropertyAccessInfo(BaseModel):
-    """Hassas giriş bilgileri (wifi, kapı kodu). Public API'de ASLA dönmez; sadece misafir mesajlarında kullanılır."""
-    property = models.OneToOneField(Property, related_name='access_info', on_delete=models.CASCADE)
-    wifi_name = models.CharField(max_length=100, blank=True)
-    wifi_password = models.CharField(max_length=100, blank=True)
-    door_code = models.CharField(max_length=50, blank=True)
-    check_in_instructions = models.TextField(blank=True)
-    house_rules = models.TextField(blank=True)
-
-    def __str__(self):
-        return f"Access info – {self.property.name}"

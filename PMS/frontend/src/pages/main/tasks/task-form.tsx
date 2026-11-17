@@ -11,7 +11,7 @@ import {
 import { api, errorMessage, fieldErrors } from "@/lib/api";
 import { todayISO } from "@/lib/pms/format";
 import { TASK_STATUS_OPTIONS } from "@/lib/pms/labels";
-import type { GeneralTask, Property, TaskStatus } from "@/lib/pms/types";
+import { TASK_PRIORITIES, type GeneralTask, type Property, type TaskPriority, type TaskStatus } from "@/lib/pms/types";
 import { useTranslations } from "@/i18n";
 import { useState } from "react";
 
@@ -20,13 +20,13 @@ interface Draft {
   description: string;
   due_date: string;
   status: TaskStatus;
-  cost: string;
+  priority: TaskPriority;
 }
 
 function toDraft(task: GeneralTask | null): Draft {
   return task
-    ? { property: task.property, description: task.description, due_date: task.due_date, status: task.status, cost: task.cost ?? "" }
-    : { property: "", description: "", due_date: todayISO(), status: "pending", cost: "" };
+    ? { property: task.property, description: task.description, due_date: task.due_date, status: task.status, priority: task.priority }
+    : { property: "", description: "", due_date: todayISO(), status: "pending", priority: "normal" };
 }
 
 export function TaskFormDialog({
@@ -70,7 +70,7 @@ function Form({
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  const tf = useTranslations("pms.finance.taskCost");
+  const tp = useTranslations("pms.taskPriority");
   const [draft, setDraft] = useState<Draft>(toDraft(task));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -89,10 +89,9 @@ function Form({
     if (Object.keys(next).length) return;
 
     setSaving(true);
-    const body = { ...draft, cost: draft.cost === "" ? null : draft.cost };
     try {
-      if (task) await api.patch(`/general-tasks/${task.id}/`, body);
-      else await api.post("/general-tasks/", body);
+      if (task) await api.patch(`/general-tasks/${task.id}/`, draft);
+      else await api.post("/general-tasks/", draft);
       onSaved();
     } catch (err) {
       const fields = fieldErrors(err);
@@ -120,10 +119,8 @@ function Form({
         />
         <SelectField label="Status" value={draft.status} onChange={(v) => set("status", v as TaskStatus)} options={TASK_STATUS_OPTIONS} error={errors.status} />
         <TextField label="Due date" type="date" value={draft.due_date} onChange={(v) => set("due_date", v)} error={errors.due_date} />
-        <div>
-          <TextField label={tf("cost")} type="number" placeholder={tf("costPlaceholder")} value={draft.cost} onChange={(v) => set("cost", v)} error={errors.cost} />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{tf("costHintMaintenance")}</p>
-        </div>
+        <SelectField label={tp("label")} value={draft.priority} onChange={(v) => set("priority", v as TaskPriority)}
+          options={TASK_PRIORITIES.map((p) => ({ value: p, label: tp(p) }))} error={errors.priority} />
         <div className="sm:col-span-2">
           <TextAreaField label="Description" value={draft.description} onChange={(v) => set("description", v)} rows={3} />
           {errors.description && <p className="mt-1 text-xs text-red-500">{errors.description}</p>}

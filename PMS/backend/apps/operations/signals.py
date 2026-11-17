@@ -1,4 +1,4 @@
-from django.db.models.signals import post_delete, post_save, pre_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from datetime import datetime, time
 
@@ -9,7 +9,7 @@ from apps.properties.models import Property
 from apps.reservations.models import Reservation
 
 from . import housekeeping
-from .models import GeneralTask, HouseKeepingTasks
+from .models import HouseKeepingTasks
 
 
 def _as_datetime(value):
@@ -48,21 +48,3 @@ def housekeeping_property_status(sender, instance, **kwargs):
         housekeeping.set_property_status(instance.property_id, Property.HousekeepingStatus.CLEANING)
     elif instance.status == HouseKeepingTasks.Status.COMPLETED:
         housekeeping.set_property_status(instance.property_id, Property.HousekeepingStatus.READY)
-
-
-@receiver(post_save, sender=GeneralTask, dispatch_uid='operations_maintenance_unblock')
-def release_maintenance_block(sender, instance, **kwargs):
-    """Arıza giderilince (tamamlandı) takvimi kapatan blok kaldırılır."""
-    if instance.status == GeneralTask.Status.COMPLETED and instance.availability_block_id:
-        block = instance.availability_block
-        GeneralTask.objects.filter(pk=instance.pk).update(availability_block=None)
-        instance.availability_block = None
-        block.delete()  # kanal senkronu sinyali tarihleri yeniden açar
-
-
-@receiver(post_delete, sender=GeneralTask, dispatch_uid='operations_maintenance_delete_block')
-def delete_maintenance_block(sender, instance, **kwargs):
-    if instance.availability_block_id:
-        from apps.reservations.models import AvailabilityBlock
-
-        AvailabilityBlock.objects.filter(pk=instance.availability_block_id).delete()

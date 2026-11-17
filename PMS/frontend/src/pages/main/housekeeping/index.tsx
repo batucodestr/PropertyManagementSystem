@@ -136,7 +136,7 @@ export default function HousekeepingPage() {
             <div className={cn("custom-scrollbar overflow-x-auto", list.loading && "opacity-60")}>
               <table className="min-w-full">
                 <thead className={theadClass}>
-                  <tr><Th>Property</Th><Th>Scheduled</Th><Th>{to("assignee")}</Th><Th>Reservation</Th><Th>Notes</Th><Th>Completed</Th><Th>Status</Th><Th className="text-end">Actions</Th></tr>
+                  <tr><Th>Property</Th><Th>Scheduled</Th><Th>Reservation</Th><Th>Notes</Th><Th>Completed</Th><Th>Status</Th><Th className="text-end">Actions</Th></tr>
                 </thead>
                 <tbody>
                   {tasks.map((t) => (
@@ -151,7 +151,6 @@ export default function HousekeepingPage() {
                         </div>
                       </td>
                       <td className={cn(tdClass, "whitespace-nowrap")}>{formatDateShort(t.scheduled_date)}</td>
-                      <td className={tdClass}>{t.assigned_to_name ?? <span className="text-gray-400">{to("unassigned")}</span>}</td>
                       <td className={cn(tdClass, "font-mono text-xs")}>{t.reservation ? t.reservation.slice(0, 8) : "—"}</td>
                       <td className={cn(tdClass, "max-w-xs truncate")}>{t.notes || "—"}</td>
                       <td className={cn(tdClass, "whitespace-nowrap")}>{t.completed_date ? formatDateShort(t.completed_date) : "—"}</td>

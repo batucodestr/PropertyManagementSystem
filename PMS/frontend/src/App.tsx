@@ -1,13 +1,9 @@
 import AppLayout from "@/components/layout/app-layout";
 import { ProtectedRoute, PublicOnlyRoute } from "@/components/layout/protected-route";
 import CalendarPage from "@/pages/main/calendar";
-import CleanerPage from "@/pages/main/cleaner";
 import InboxPage from "@/pages/main/inbox";
-import MaintenancePage from "@/pages/main/maintenance";
-import MessageTemplatesPage from "@/pages/main/message-templates";
 import ChannelsPage from "@/pages/main/channels";
 import DashboardPage from "@/pages/main/dashboard";
-import ExpensesPage from "@/pages/main/finance/expenses";
 import PaymentsPage from "@/pages/main/finance/payments";
 import ReportsPage from "@/pages/main/finance/reports";
 import GuestsPage from "@/pages/main/guests";
@@ -28,8 +24,6 @@ export default function App() {
     <Routes>
       {/* PMS application shell (giriş gerektirir) */}
       <Route element={<ProtectedRoute />}>
-        {/* Temizlikçi (mobil) görünümü: kenar çubuğu olmadan */}
-        <Route path="/cleaner" element={<CleanerPage />} />
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
@@ -45,17 +39,14 @@ export default function App() {
           <Route path="/housekeeping" element={<HousekeepingPage />} />
           <Route path="/operations" element={<OperationsPage />} />
           <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/maintenance" element={<MaintenancePage />} />
           <Route path="/inbox" element={<InboxPage />} />
 
           {/* System */}
           <Route path="/finance/payments" element={<PaymentsPage />} />
-          <Route path="/finance/expenses" element={<ExpensesPage />} />
           <Route path="/finance/reports" element={<ReportsPage />} />
           <Route path="/channels" element={<ChannelsPage />} />
           <Route path="/sync-log" element={<SyncLogPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/settings/messages" element={<MessageTemplatesPage />} />
         </Route>
       </Route>
 

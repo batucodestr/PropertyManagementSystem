@@ -1,41 +1,6 @@
 from rest_framework import serializers
 
-from .models import Conversation, Message, MessageTemplate, ScheduledMessage
-
-TEMPLATE_VARIABLES = [
-    'guest_first_name', 'guest_last_name', 'property_name', 'check_in_date', 'check_in_time',
-    'check_out_date', 'check_out_time', 'nights', 'address', 'wifi_name', 'wifi_password', 'door_code',
-    'check_in_instructions', 'house_rules', 'booking_ref',
-]
-
-
-class MessageTemplateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = MessageTemplate
-        fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at']
-
-    def validate_body(self, value):
-        if not value.strip():
-            raise serializers.ValidationError('Message body cannot be empty.')
-        return value
-
-    def validate(self, data):
-        if data.get('offset_hours') is not None and data['offset_hours'] > 24 * 30:
-            raise serializers.ValidationError({'offset_hours': 'Offset can be at most 30 days.'})
-        return data
-
-
-class ScheduledMessageSerializer(serializers.ModelSerializer):
-    template_name = serializers.CharField(source='template.name', read_only=True)
-    trigger = serializers.CharField(source='template.trigger', read_only=True)
-
-    class Meta:
-        model = ScheduledMessage
-        fields = ['id', 'reservation', 'template', 'template_name', 'trigger', 'send_at', 'status', 'channel',
-                  'sent_at', 'attempts', 'error', 'created_at']
-        read_only_fields = fields
-
+from .models import Conversation, Message
 
 class MessageSerializer(serializers.ModelSerializer):
     sent_by_name = serializers.SerializerMethodField()

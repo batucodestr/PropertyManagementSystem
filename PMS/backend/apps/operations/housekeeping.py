@@ -1,7 +1,6 @@
 """Temizlik otomasyonu.
 
-- Rezervasyon confirmed olunca check-out günü için tek bir otomatik temizlik görevi açılır
-  (atanan = evin varsayılan temizlikçisi).
+- Rezervasyon confirmed olunca check-out günü için tek bir otomatik temizlik görevi açılır.
 - Tarih/ev değişince bekleyen görev taşınır. İptal / no-show / pending'e dönüşte bekleyen görev silinir.
   Başlamış veya bitmiş görevlere dokunulmaz.
 - Aynı gün aynı eve giriş varsa görev 'urgent' olur (yeni giriş eklenince/kalkınca yeniden hesaplanır).
@@ -58,7 +57,6 @@ def sync_checkout_task(reservation, old=None):
                     HouseKeepingTasks.objects.create(
                         property=reservation.property, reservation=reservation, is_auto=True,
                         scheduled_date=checkout_day,
-                        assigned_to_id=reservation.property.default_cleaner_id,
                     )
             elif task.status == HouseKeepingTasks.Status.PENDING and (
                 task.scheduled_date != checkout_day or task.property_id != reservation.property_id

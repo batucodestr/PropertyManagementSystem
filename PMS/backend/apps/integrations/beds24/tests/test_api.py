@@ -154,6 +154,24 @@ class SignalTests(AuthenticatedAPITestCase):
             from_beds24.save()  # PMS'te düzenlense de Beds24'e geri yazılmaz
         self.assertEqual(self._queued(), [((str(direct.pk),), {}), ((str(manual_airbnb.pk),), {})])
 
+    def test_deleting_pms_reservation_deletes_beds24_booking_but_not_channel_ones(self):
+        prop = make_property()
+        guest = make_guest()
+        start = timezone.now() + timedelta(days=5)
+        pms = Reservation.objects.create(property=prop, guest=guest, check_in=start, check_out=start + timedelta(days=2),
+                                         total_price=Decimal('10'), external_source_id='111')
+        ota = Reservation.objects.create(property=prop, guest=guest, check_in=start + timedelta(days=5),
+                                         check_out=start + timedelta(days=7), total_price=Decimal('10'),
+                                         source='airbnb', external_source_id='222', created_via_channel=True)
+        local_only = Reservation.objects.create(property=prop, guest=guest, check_in=start + timedelta(days=9),
+                                                check_out=start + timedelta(days=10), total_price=Decimal('10'))
+        self.delay.reset_mock()
+        with self.captureOnCommitCallbacks(execute=True):
+            pms.delete()
+            ota.delete()
+            local_only.delete()
+        self.assertEqual(self._queued(), [(('111',), {})])
+
     def test_today_filters_use_local_day(self):
         prop = make_property()
         today = timezone.localdate()

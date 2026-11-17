@@ -11,6 +11,8 @@ Gelir defteri (FinancialTransaction, category=reservation):
     tarih = check-in günü). Pending'de kayıt yoktur. İptal / no-show olunca kayıt SİLİNİR
     (ters kayıt atılmaz): defter her zaman rezervasyonun güncel durumunu yansıtır.
 
+Finans tamamen otomatiktir: elle gelir/masraf girilmez, komisyon elle düzeltilmez.
+
 Tüm para hesapları Decimal, ROUND_HALF_UP, 2 hane.
 """
 from datetime import date
@@ -23,7 +25,7 @@ from django.utils.dateparse import parse_datetime
 
 from apps.properties.pricing import money, property_tz
 
-from .models import FinancialTransaction, RecurringExpense
+from .models import FinancialTransaction
 
 INCOME_STATUSES = ('confirmed', 'completed')
 ZERO = Decimal('0.00')
@@ -87,50 +89,3 @@ def sync_reservation_income(reservation):
             },
         )
     return tx
-
-
-def sync_task_expense(task, *, link_field, category, label):
-    """Tamamlanmış ve maliyeti girilmiş görev -> masraf kaydı; aksi halde bağlı masraf silinir."""
-    qs = FinancialTransaction.objects.filter(**{link_field: task})
-    if task.status != 'completed' or not task.cost or task.cost <= 0:
-        qs.delete()
-        return None
-    tx, _ = FinancialTransaction.objects.update_or_create(
-        **{link_field: task},
-        defaults={
-            'property': task.property,
-            'transaction_type': FinancialTransaction.TransactionType.EXPENSE,
-            'category': category,
-            'amount': money(task.cost),
-            'currency': settings.PROPERTY_CURRENCY,
-            'transaction_date': task.completed_date or timezone.localdate(),
-            'description': label,
-        },
-    )
-    return tx
-
-
-def generate_recurring_expenses(today=None):
-    """Ayın günü geldiyse her aktif tekrarlayan masraf için bu ayın kaydını oluşturur (idempotent)."""
-    today = today or timezone.localdate(timezone=property_tz())
-    created = 0
-    qs = RecurringExpense.objects.filter(is_active=True, start_date__lte=today, day_of_month__lte=today.day)
-    for rec in qs.select_related('property'):
-        if rec.end_date and rec.end_date < today:
-            continue
-        due = date(today.year, today.month, rec.day_of_month)
-        if due < rec.start_date:
-            continue
-        _, was_created = FinancialTransaction.objects.get_or_create(
-            recurring_expense=rec, transaction_date=due,
-            defaults={
-                'property': rec.property,
-                'transaction_type': FinancialTransaction.TransactionType.EXPENSE,
-                'category': rec.category,
-                'amount': rec.amount,
-                'currency': rec.currency,
-                'description': rec.description or f'Recurring: {rec.get_category_display()}',
-            },
-        )
-        created += int(was_created)
-    return created

@@ -1,9 +1,3 @@
-import type { ExpenseCategory } from "@/lib/pms/types";
-
-export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
-  "cleaning", "maintenance", "electricity", "water", "internet", "gas", "dues", "supplies", "tax", "other",
-];
-
 /** Satırları CSV olarak indirir (Excel'de Türkçe karakterler için BOM eklenir). */
 export function downloadCsv(filename: string, rows: (string | number)[][]) {
   const escape = (v: string | number) => {

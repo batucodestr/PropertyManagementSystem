@@ -103,3 +103,14 @@ def reservation_saved(sender, instance, **kwargs):
     # PMS'te açılan her rezervasyon (kaynağı Airbnb/Booking seçilmiş olsa bile) Beds24'e gider,
     # böylece diğer kanallarda tarih kapanır.
     enqueue(push_booking_task, str(instance.pk))
+
+
+@receiver(post_delete, sender=Reservation, dispatch_uid='beds24_reservation_deleted')
+def reservation_deleted(sender, instance, **kwargs):
+    """PMS'te açılıp Beds24'e gönderilmiş rezervasyon silinince Beds24 kaydı da silinir (tarih açılır).
+    Beds24'ten gelen OTA rezervasyonlarına dokunulmaz: onları sadece kanal (Airbnb/Booking) iptal edebilir."""
+    from .beds24.tasks import delete_booking_task
+
+    if instance.created_via_channel or not instance.external_source_id:
+        return
+    enqueue(delete_booking_task, instance.external_source_id)

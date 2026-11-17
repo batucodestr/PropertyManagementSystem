@@ -33,8 +33,6 @@ import type { ChannelListing, ChannelOverview, Property } from "@/lib/pms/types"
 import { cn } from "@/utils";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "@/i18n";
-import { KeyIcon } from "@/icons";
-import { AccessInfoDialog } from "./access-info-dialog";
 import { PropertyFormDialog } from "./property-form";
 
 const STATUS_OPTIONS = [
@@ -76,9 +74,7 @@ export default function PropertiesPage() {
   const [editing, setEditing] = useState<Property | null>(null);
   const [viewing, setViewing] = useState<Property | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [accessFor, setAccessFor] = useState<Property | null>(null);
   const to = useTranslations("pms.ops");
-  const ta = useTranslations("pms.accessInfo");
 
   // Kanal durumu (Beds24 eşlemesi, Airbnb/Booking bağlı mı, senkron hatası) rozetleri için.
   const [listings, setListings] = useState<Map<string, ChannelListing | null>>(new Map());
@@ -225,7 +221,6 @@ export default function PropertiesPage() {
         )}
       </Panel>
 
-      <AccessInfoDialog property={accessFor} onOpenChange={(o) => !o && setAccessFor(null)} />
       <PropertyFormDialog open={formOpen} property={editing} onOpenChange={setFormOpen} onSaved={() => { reload(); setTimeout(loadChannels, 3000); }} />
 
       <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
@@ -249,7 +244,6 @@ export default function PropertiesPage() {
                 <Detail label="Area">{viewing.area} m²</Detail>
               </dl>
               <DialogFooter>
-                <Button variant="outline" onClick={() => { setAccessFor(viewing); setViewing(null); }}><KeyIcon className="size-4" /> {ta("open")}</Button>
                 <Button variant="outline" onClick={() => remove(viewing)}>Delete</Button>
                 <Button variant="outline" onClick={() => setViewing(null)}>Close</Button>
                 <Button onClick={() => { openEdit(viewing); setViewing(null); }}>Edit property</Button>

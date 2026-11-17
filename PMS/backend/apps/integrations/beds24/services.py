@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 FINAL_LOCAL_STATUSES = {Reservation.Status.COMPLETED, Reservation.Status.NO_SHOW}
 DIRECT_LOCAL_FIELDS = (
     'source', 'channel_booking_ref', 'channel_commission', 'commission_is_estimated', 'taxes', 'cleaning_fee',
-    'guest_language',
 )
 POLL_OVERLAP = timedelta(minutes=5)
 FIRST_POLL_WINDOW = timedelta(days=30)
@@ -174,17 +173,91 @@ def push_booking(reservation, client=None):
     return reservation.external_source_id
 
 
+def delete_booking(booking_id, client=None):
+    """PMS'te silinen (PMS'te açılmış) rezervasyonun Beds24 kaydını siler; takvim tekrar açılır."""
+    client = _client(client)
+    check_post_results(
+        client.request('DELETE', '/bookings', params={'id': [int(booking_id)]}, action='booking.delete'),
+        'booking.delete',
+    )
+    return str(booking_id)
+
+
 # --------------------------------------------------------------------------- inbound bookings
 BOOKING_STATUSES_ALL = ['confirmed', 'request', 'new', 'cancelled']
+# GET /bookings varsayılan olarak sadece gelecekteki rezervasyonları döndürür; id ile sorguda geçmişi de kapsasın.
+# TODO(beds24): doğrula — arrivalFrom'un id sorgusundaki "sadece upcoming" varsayılanını kaldırdığı.
+LOOKUP_ARRIVAL_FROM = '2000-01-01'
+RECONCILE_CHUNK = 50
+ACTIVE_LOCAL_STATUSES = ('pending', 'confirmed')
 
 
 def fetch_booking(booking_id, client=None):
     client = _client(client)
     data = client.get('/bookings', params={
         'id': booking_id, 'includeInvoiceItems': 'true', 'status': BOOKING_STATUSES_ALL,
+        'arrivalFrom': LOOKUP_ARRIVAL_FROM,
     }, action='booking.fetch')
     items = (data or {}).get('data') or []
     return items[0] if items else None
+
+
+def cancel_missing_booking(reservation, connection):
+    """Beds24'te silinmiş rezervasyonu PMS'te iptal eder (geçmiş ve finans tutarlı kalsın diye silinmez)."""
+    if reservation.status not in ACTIVE_LOCAL_STATUSES:
+        return False
+    old_status = reservation.status
+    reservation.status = Reservation.Status.CANCELLED
+    reservation.last_synced_at = timezone.now()
+    reservation._from_channel = True  # Beds24'e geri gönderilmesin (orada artık yok)
+    reservation.save(update_fields=['status', 'last_synced_at', 'updated_at'])
+    _history(reservation, old_status)
+    SyncLog.objects.create(
+        connection=connection, action='booking.deleted_in_beds24', status='success',
+        message=f'Beds24 #{reservation.external_source_id} Beds24\'te silinmiş: PMS\'te iptal edildi',
+        details={'reservation': str(reservation.pk)},
+    )
+    return True
+
+
+def reconcile_deleted_bookings(client=None):
+    """PMS'teki aktif, Beds24'e bağlı rezervasyonlar Beds24'te hâlâ var mı? Yoksa (silinmişse) PMS'te iptal et.
+
+    Silinen rezervasyonlar 'modifiedFrom' polling'inde hiç görünmez; bu kontrol o boşluğu kapatır.
+    Güvenlik: Beds24 hiçbir kaydı döndürmezse (API/izin sorunu olabilir) toplu iptal yapılmaz.
+    """
+    client = _client(client)
+    connection = client.connection
+    today = timezone.localdate(timezone=pricing.property_tz())
+    candidates = list(
+        Reservation.objects.exclude(external_source_id='')
+        .filter(status__in=ACTIVE_LOCAL_STATUSES, check_out__date__gte=today)
+    )
+    if not candidates:
+        return 0
+    ids = [r.external_source_id for r in candidates]
+    found = set()
+    for i in range(0, len(ids), RECONCILE_CHUNK):
+        chunk = ids[i:i + RECONCILE_CHUNK]
+        items = client.get_all('/bookings', params={
+            'id': [int(x) for x in chunk if x.isdigit()],
+            'status': BOOKING_STATUSES_ALL + ['black', 'inquiry'],
+            'arrivalFrom': LOOKUP_ARRIVAL_FROM,
+        }, action='booking.reconcile', log=False)
+        found |= {str(b.get('id')) for b in items}
+    if not found and len(ids) > 1:
+        SyncLog.objects.create(
+            connection=connection, action='booking.reconcile', status='error',
+            message=f'Beds24 {len(ids)} rezervasyonun hiçbirini döndürmedi; güvenlik için iptal yapılmadı',
+        )
+        return 0
+    cancelled = 0
+    for reservation in candidates:
+        if reservation.external_source_id not in found:
+            with transaction.atomic():
+                locked = Reservation.objects.select_for_update().get(pk=reservation.pk)
+                cancelled += int(cancel_missing_booking(locked, connection))
+    return cancelled
 
 
 def _find_guest(fields):
@@ -325,6 +398,10 @@ def import_booking(booking_id, client=None):
     client = _client(client)
     booking = fetch_booking(booking_id, client=client)
     if booking is None:
+        # Beds24'te silinmiş: PMS'te karşılığı varsa iptal et.
+        reservation = Reservation.objects.filter(external_source_id=str(booking_id)).first()
+        if reservation is not None and cancel_missing_booking(reservation, client.connection):
+            return reservation, 'cancelled:deleted_in_beds24'
         return None, 'skipped:not_found'
     return upsert_booking(booking, client.connection)
 
@@ -361,6 +438,9 @@ def pull_bookings(client=None, modified_from=None):
                 message=f'Beds24 #{booking.get("id")}: {exc.__class__.__name__}: {str(exc)[:200]}',
             )
         summary[result] = summary.get(result, 0) + 1
+    deleted = reconcile_deleted_bookings(client)
+    if deleted:
+        summary['cancelled:deleted_in_beds24'] = deleted
     connection.last_synced_at = started
     connection.save(update_fields=['last_synced_at', 'updated_at'])
     SyncLog.objects.create(

@@ -56,6 +56,11 @@ def push_booking_task(reservation_id):
 
 
 @shared_task(**RETRY)
+def delete_booking_task(booking_id):
+    return services.delete_booking(booking_id)
+
+
+@shared_task(**RETRY)
 def process_webhook_event(event_id):
     event = WebhookEvent.objects.filter(pk=event_id).first()
     if event is None:

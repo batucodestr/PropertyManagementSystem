@@ -259,7 +259,6 @@ def reservation_fields(booking):
         'source': map_source(booking),
         'external_source_id': str(booking['id']),
         'channel_booking_ref': str(booking.get('apiReference') or '')[:100],
-        'guest_language': str(booking.get('lang') or '')[:10].lower(),
         'special_requests': special[:2000],
     }
 

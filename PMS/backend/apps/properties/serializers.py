@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import DailyRate, Property, PropertyAccessInfo, PropertyImage, SeasonalRate
+from .models import DailyRate, Property, PropertyImage, SeasonalRate
 from .validate import validate_property_data
 
 class PropertyImageSerializer(serializers.ModelSerializer):
@@ -117,11 +117,3 @@ class BulkDailyRateSerializer(serializers.Serializer):
         return data
 
 
-
-class PropertyAccessInfoSerializer(serializers.ModelSerializer):
-    """Hassas: sadece yetkili personel uçlarında. PublicPropertySerializer bu modele asla bağlanmaz."""
-
-    class Meta:
-        model = PropertyAccessInfo
-        fields = ['wifi_name', 'wifi_password', 'door_code', 'check_in_instructions', 'house_rules', 'updated_at']
-        read_only_fields = ['updated_at']

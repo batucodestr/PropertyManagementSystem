@@ -1,7 +1,6 @@
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from apps.operations.models import GeneralTask, HouseKeepingTasks
 from apps.reservations.models import Reservation
 
 from . import services
@@ -20,19 +19,3 @@ def reservation_income(sender, instance, update_fields=None, **kwargs):
         # save(update_fields=...) hesaplanan finans alanlarını yazmamış olabilir.
         Reservation.objects.filter(pk=instance.pk).update(**{f: getattr(instance, f) for f in FINANCE_FIELDS})
     services.sync_reservation_income(instance)
-
-
-@receiver(post_save, sender=HouseKeepingTasks, dispatch_uid='finance_housekeeping_expense')
-def housekeeping_expense(sender, instance, **kwargs):
-    services.sync_task_expense(
-        instance, link_field='housekeeping_task', category='cleaning',
-        label=f'Cleaning – {instance.property.name} ({instance.scheduled_date})',
-    )
-
-
-@receiver(post_save, sender=GeneralTask, dispatch_uid='finance_general_task_expense')
-def general_task_expense(sender, instance, **kwargs):
-    services.sync_task_expense(
-        instance, link_field='general_task', category='maintenance',
-        label=f'Maintenance – {instance.description[:80]}',
-    )

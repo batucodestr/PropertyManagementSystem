@@ -90,8 +90,8 @@ class ReservationSerializer(serializers.ModelSerializer):
         # Kanal eşlemesi sadece senkron servisleri tarafından yazılır.
         read_only_fields = [
             "external_source_id", "channel_booking_ref", "last_synced_at",
-            # Finans: net her kayıtta yeniden hesaplanır (apps.finance.services.apply_financials).
-            "net_amount", "commission_is_estimated",
+            # Finans tamamen otomatik (Beds24 verisi + kanal oranı); elle girilmez.
+            "channel_commission", "commission_is_estimated", "cleaning_fee", "taxes", "net_amount",
         ]
 
     def validate_currency(self, value):
@@ -177,13 +177,6 @@ class ReservationSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"status": "A reservation that has checked in cannot be cancelled."}
                 )
-
-        for field in ('channel_commission', 'cleaning_fee', 'taxes'):
-            if data.get(field) is not None and data[field] < 0:
-                raise serializers.ValidationError({field: "This value cannot be negative."})
-        if 'channel_commission' in data:
-            # Elle girilen komisyon kesindir; null gönderilirse kanal oranıyla yeniden tahmin edilir.
-            data['commission_is_estimated'] = data['channel_commission'] is None
 
         # Early, friendly error. The authoritative check re-runs under a lock in create()/update().
         self._check_availability(data)

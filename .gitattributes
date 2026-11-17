@@ -1,1 +1,5 @@
-pms/frontend/** linguist-vendored
+# GitHub dil istatistiği (Linguist): ana dil Python (Django backend) görünsün.
+# Frontend (React/TypeScript, TailAdmin tabanlı) istatistiğe katılmaz. Yollar büyük/küçük harf duyarlıdır.
+PMS/frontend/** linguist-vendored
+PMS/backend/apps/integrations/beds24/openapi.json linguist-generated
+PMS/backend/postman/** linguist-documentation

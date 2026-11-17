@@ -390,3 +390,52 @@ class ManualChannelReservationTests(Beds24TestMixin, TestCase):
         make_listing(make_property())
         reservation, _ = services.upsert_booking(booking())
         self.assertTrue(reservation.created_via_channel)
+
+
+
+class DeleteBookingTests(Beds24TestMixin, TestCase):
+    def test_delete_booking_calls_beds24_delete(self):
+        self.rsps.add(responses.DELETE, f'{API}/bookings', json=[{'success': True}])
+        self.assertEqual(services.delete_booking('96229638'), '96229638')
+        call = self.calls_to('/bookings', 'DELETE')[0]
+        self.assertIn('id=96229638', call.request.url)
+
+
+
+class DeletedInBeds24Tests(Beds24TestMixin, TestCase):
+    """Beds24'te silinen rezervasyon PMS'te iptal olur (polling ve webhook)."""
+
+    def setUp(self):
+        super().setUp()
+        self.prop = make_property()
+        make_listing(self.prop)
+        start = timezone.now() + timedelta(days=10)
+        self.kept = Reservation.objects.create(
+            property=self.prop, guest=make_guest(), check_in=start, check_out=start + timedelta(days=2),
+            total_price=Decimal('100'), status='confirmed', external_source_id='501')
+        self.gone = Reservation.objects.create(
+            property=self.prop, guest=make_guest(email='x@example.com'), check_in=start + timedelta(days=5),
+            check_out=start + timedelta(days=7), total_price=Decimal('100'), status='confirmed',
+            external_source_id='502')
+
+    def test_reconcile_cancels_bookings_missing_in_beds24(self):
+        self.rsps.add(responses.GET, f'{API}/bookings', json=bookings_response(booking(id=501)))
+        self.assertEqual(services.reconcile_deleted_bookings(), 1)
+        self.gone.refresh_from_db()
+        self.kept.refresh_from_db()
+        self.assertEqual((self.gone.status, self.kept.status), ('cancelled', 'confirmed'))
+        self.assertTrue(SyncLog.objects.filter(action='booking.deleted_in_beds24').exists())
+        # Beds24'e geri gönderim (POST /bookings) yapılmaz
+        self.assertEqual(len(self.calls_to('/bookings', 'POST')), 0)
+
+    def test_empty_response_does_not_mass_cancel(self):
+        self.rsps.add(responses.GET, f'{API}/bookings', json=bookings_response())
+        self.assertEqual(services.reconcile_deleted_bookings(), 0)
+        self.assertEqual(Reservation.objects.filter(status='cancelled').count(), 0)
+
+    def test_webhook_for_deleted_booking_cancels_it(self):
+        self.rsps.add(responses.GET, f'{API}/bookings', json=bookings_response())
+        reservation, result = services.import_booking(502)
+        self.assertEqual(result, 'cancelled:deleted_in_beds24')
+        self.gone.refresh_from_db()
+        self.assertEqual(self.gone.status, 'cancelled')

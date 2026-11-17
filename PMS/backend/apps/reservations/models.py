@@ -60,8 +60,6 @@ class Reservation(BaseModel):
     # True: rezervasyon kanal yöneticisinden (Beds24) içe aktarıldı -> oradaki veri otoriter.
     # False: PMS'te açıldı (kaynağı Airbnb seçilmiş olsa bile) -> Beds24'e PMS'ten gönderilir.
     created_via_channel = models.BooleanField(default=False)
-    # Misafirin dili (Beds24 'lang'); otomatik mesaj şablonu seçiminde kullanılır.
-    guest_language = models.CharField(max_length=10, blank=True, default="")
 
     # --- Finans ---
     # Tanım: net_amount = total_price - channel_commission - taxes.
@@ -71,13 +69,6 @@ class Reservation(BaseModel):
     cleaning_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     taxes = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-
-    class PayoutStatus(models.TextChoices):
-        PENDING = "pending", "Pending"
-        PAID = "paid", "Paid"
-
-    payout_status = models.CharField(max_length=10, choices=PayoutStatus.choices, default=PayoutStatus.PENDING)
-    payout_date = models.DateField(null=True, blank=True)
 
     class Meta:
         constraints = [

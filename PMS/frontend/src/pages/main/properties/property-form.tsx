@@ -1,6 +1,4 @@
-import { CleanerSelect } from "@/components/shared/pms/cleaner-select";
 import { SelectField, TextAreaField, TextField } from "@/components/shared/pms/form-bits";
-import { useTranslations } from "@/i18n";
 import { ErrorBanner } from "@/components/shared/pms/ui-bits";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +30,6 @@ type Draft = {
   area: string;
   base_price: string;
   is_active: string; // "true" | "false"
-  default_cleaner: string;
 };
 
 const REQUIRED: [keyof Draft, string][] = [
@@ -76,7 +73,6 @@ const blank: Draft = {
   area: "",
   base_price: "",
   is_active: "true",
-  default_cleaner: "",
 };
 
 function toDraft(p: Property | null): Draft {
@@ -97,7 +93,6 @@ function toDraft(p: Property | null): Draft {
     area: p.area,
     base_price: p.base_price,
     is_active: String(p.is_active),
-    default_cleaner: p.default_cleaner ? String(p.default_cleaner) : "",
   };
 }
 
@@ -140,7 +135,6 @@ function PropertyForm({
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  const to = useTranslations("pms.ops");
   const [draft, setDraft] = useState<Draft>(toDraft(property));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -183,7 +177,6 @@ function PropertyForm({
       area: draft.area.trim(),
       base_price: draft.base_price.trim(),
       is_active: draft.is_active === "true",
-      default_cleaner: draft.default_cleaner ? Number(draft.default_cleaner) : null,
     };
 
     setSaving(true);
@@ -247,10 +240,6 @@ function PropertyForm({
         {text("bathroom_count", "Bathrooms", { type: "number" })}
         {text("area", "Area (m²)", { type: "number" })}
         {text("base_price", "Base price (per night)", { type: "number" })}
-        <div className="sm:col-span-2">
-          <CleanerSelect label={to("defaultCleaner")} hint={to("defaultCleanerHint")} value={draft.default_cleaner}
-            onChange={(v) => set("default_cleaner", v)} error={errors.default_cleaner} />
-        </div>
         <div className="flex flex-col gap-2 sm:col-span-2">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Image</span>
           <div className="flex flex-wrap gap-3">
