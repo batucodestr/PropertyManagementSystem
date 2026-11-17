@@ -10,10 +10,8 @@ from .models import Reservation, ReservationGuest, AvailabilityBlock, Reservatio
 
 Status = Reservation.Status
 
-# Statuses that occupy the calendar. Cancelled and no-show reservations free their dates.
 BLOCKING_STATUSES = (Status.PENDING, Status.CONFIRMED, Status.COMPLETED)
 
-# Manual status transitions. COMPLETED is only reachable through the check-out endpoint.
 ALLOWED_TRANSITIONS = {
     Status.PENDING: {Status.CONFIRMED, Status.CANCELLED},
     Status.CONFIRMED: {Status.CANCELLED, Status.NO_SHOW},
