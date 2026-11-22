@@ -89,8 +89,28 @@ class PropertyImageTests(AuthenticatedAPITestCase):
             self.assertEqual(self.client.delete(f'/api/property-images/{image.id}/').status_code, 204)
 
 
+@override_settings(PUBLIC_API_KEY='test-key')
 class PublicPropertyAPITests(APITestCase):
     """Tanıtım sitesinin kullandığı /api/public/properties/ uç noktası."""
+
+    def setUp(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token test-key')
+
+    def test_requires_api_key(self):
+        make_property()
+        self.client.credentials()
+        self.assertEqual(self.client.get('/api/public/properties/').status_code, 403)
+        self.client.credentials(HTTP_AUTHORIZATION='Token wrong')
+        self.assertEqual(self.client.get('/api/public/properties/').status_code, 403)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer test-key')
+        self.assertEqual(self.client.get('/api/public/properties/').status_code, 403)
+        self.client.credentials(HTTP_X_API_KEY='test-key')
+        self.assertEqual(self.client.get('/api/public/properties/').status_code, 200)
+
+    @override_settings(PUBLIC_API_KEY='')
+    def test_closed_when_key_not_configured(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Token ')
+        self.assertEqual(self.client.get('/api/public/properties/').status_code, 403)
 
     def test_anonymous_list_shows_only_active_and_safe_fields(self):
         make_property(name='Açık Ev', city='Muğla')
@@ -127,11 +147,6 @@ class PublicPropertyAPITests(APITestCase):
         self.assertEqual(self.client.patch(url, {'name': 'x'}, format='json').status_code, 405)
         self.assertEqual(self.client.delete(url).status_code, 405)
         self.assertTrue(Property.objects.filter(pk=prop.pk).exists())
-
-    def test_invalid_auth_header_is_ignored(self):
-        make_property()
-        res = self.client.get('/api/public/properties/', HTTP_AUTHORIZATION='Bearer invalid')
-        self.assertEqual(res.status_code, 200)
 
     def test_image_is_relative_media_path(self):
         import tempfile

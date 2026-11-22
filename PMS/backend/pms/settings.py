@@ -33,6 +33,19 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes')
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()]
 if os.environ.get('DJANGO_BEHIND_HTTPS_PROXY', '').lower() in ('1', 'true', 'yes'):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # Çerezler yalnızca HTTPS üzerinden gider. SECURE_SSL_REDIRECT bilerek yok:
+    # Roomy PMS'e iç ağdan düz HTTP ile bağlanır; yönlendirme onu bozardı (HSTS/redirect Caddy'de).
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
+
+
+# Tanıtım sitesinin /api/public/ uçları için paylaşılan anahtar. Boşsa uçlar kapalıdır.
+PUBLIC_API_KEY = os.getenv('PUBLIC_API_KEY', '')
 
 
 # Application definition
