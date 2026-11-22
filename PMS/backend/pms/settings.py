@@ -79,7 +79,7 @@ INSTALLED_APPS = [
 ]
 
 REST_FRAMEWORK = {
-    'DEFAULT_PAGINATION_CLASS': 'apps.core.pagination.StandardPagination',
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -92,8 +92,13 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
-    # Sadece throttle_scope tanımlayan görünümlere uygulanır (ör. /api/public/...).
+    # Login brute-force koruması (yalnızca login görünümünde işler, bkz. pms/throttles.py).
+    'DEFAULT_THROTTLE_CLASSES': [
+        'pms.throttles.LoginRateThrottle',
+    ],
+    # 'public' ve 'webhook' yalnızca throttle_scope tanımlayan görünümlere uygulanır (ör. /api/public/...).
     'DEFAULT_THROTTLE_RATES': {
+        'login': os.getenv('LOGIN_THROTTLE_RATE', '5/minute'),
         'public': os.getenv('PUBLIC_API_THROTTLE_RATE', '300/minute'),
         'webhook': os.getenv('WEBHOOK_THROTTLE_RATE', '120/minute'),
     },
@@ -209,6 +214,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Test modu: dış servislere (Redis, Beds24) asla gidilmez.
 # ---------------------------------------------------------------------------
 TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
+
+# Testler çok giriş yaptığı için login oranı yüksek tutulur (throttle testi kendi oranını yamalar).
+if TESTING:
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']['login'] = '1000/minute'
 
 # Cache: Beds24 token'ı tüm worker'lar arasında paylaşılsın diye Redis.
 # REDIS_URL tanımlı değilse (Redis'siz lokal geliştirme) süreç içi LocMem kullanılır.

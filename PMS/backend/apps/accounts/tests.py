@@ -1,8 +1,13 @@
 from datetime import timedelta
 
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
+
+from pms.throttles import LoginRateThrottle
 
 
 class AuthTests(APITestCase):
@@ -32,6 +37,30 @@ class AuthTests(APITestCase):
     def test_token_refresh_with_invalid_token(self):
         res = self.client.post('/api/accounts/token/refresh/', {'refresh': 'garbage'})
         self.assertEqual(res.status_code, 401)
+
+
+class LoginThrottleTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        User.objects.create_user('staff', 'staff@example.com', 'S3cret-pass!')
+        patcher = patch.object(LoginRateThrottle, 'THROTTLE_RATES', {'login': '3/minute'})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(cache.clear)
+
+    def _login(self, password):
+        return self.client.post('/api/accounts/login/', {'username': 'staff', 'password': password})
+
+    def test_login_is_rate_limited_per_ip(self):
+        for _ in range(3):
+            self.assertEqual(self._login('wrong').status_code, 401)
+        self.assertEqual(self._login('S3cret-pass!').status_code, 429)  # doğru parola bile engellenir
+
+    def test_other_endpoints_are_not_counted(self):
+        for _ in range(5):
+            res = self.client.post('/api/accounts/token/refresh/', {'refresh': 'garbage'})
+            self.assertEqual(res.status_code, 401)
+        self.assertEqual(self._login('S3cret-pass!').status_code, 200)
 
 
 class JWTProtectionTests(APITestCase):
