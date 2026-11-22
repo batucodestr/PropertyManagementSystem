@@ -79,7 +79,7 @@ export default function DashboardPage() {
   const upcoming = useApiList<Reservation>("/reservations/", {
     check_in__gte: today,
     ordering: "check_in",
-    page_size: 20,
+    page_size: 35,
   });
 
   const queries = [properties, guests, pending, confirmed, arrivals, departures, windowRes, month, upcoming];

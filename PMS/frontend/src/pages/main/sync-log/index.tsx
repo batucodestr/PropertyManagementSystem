@@ -24,7 +24,7 @@ import type { SyncLog } from "@/lib/pms/types";
 import { cn } from "@/utils";
 import { Fragment, useState } from "react";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 35;
 
 export default function SyncLogPage() {
   const t = useTranslations("pms.syncLog");

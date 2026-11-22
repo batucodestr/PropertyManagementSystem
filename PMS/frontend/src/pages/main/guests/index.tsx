@@ -28,7 +28,7 @@ import { cn, getInitials } from "@/utils";
 import { useState } from "react";
 import { GuestFormDialog } from "./guest-form";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 35;
 
 export default function GuestsPage() {
   const [search, setSearch] = useState("");

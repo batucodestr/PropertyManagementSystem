@@ -24,7 +24,7 @@ export default function InboxPage() {
   const [selected, setSelected] = useState<Conversation | null>(null);
   const debounced = useDebounce(search.trim());
   const list = useApiList<Conversation>("/messaging/conversations/", {
-    search: debounced, unread: unreadOnly ? "true" : "", page_size: 50,
+    search: debounced, unread: unreadOnly ? "true" : "", page_size: 35,
   });
   const reload = list.reload;
   useEffect(() => {

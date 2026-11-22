@@ -189,7 +189,7 @@ export async function fetchAll<T>(
   for (let page = 1; ; page++) {
     const data = await api.get<Paginated<T>>(path, {
       ...params,
-      page_size: 100,
+      page_size: 35,
       page,
     });
     items.push(...data.results);

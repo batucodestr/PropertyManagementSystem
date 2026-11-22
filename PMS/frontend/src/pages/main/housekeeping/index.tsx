@@ -29,7 +29,7 @@ import { cn } from "@/utils";
 import { useMemo, useState } from "react";
 import { HousekeepingFormDialog } from "./housekeeping-form";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 35;
 
 const selectClass =
   "h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-700 outline-hidden focus:border-brand-300 focus:ring-3 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200";

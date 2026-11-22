@@ -24,7 +24,7 @@ import type { Payment, Property } from "@/lib/pms/types";
 import { cn } from "@/utils";
 import { useState } from "react";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 35;
 
 type PaymentList = Paginated<Payment> & { totals: { gross: string; commission: string; net: string } };
 

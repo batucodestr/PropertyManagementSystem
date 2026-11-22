@@ -28,7 +28,7 @@ import { cn } from "@/utils";
 import { useMemo, useState } from "react";
 import { ReservationFormDialog } from "./reservation-form";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 35;
 
 export default function ReservationsPage() {
   const [search, setSearch] = useState("");
